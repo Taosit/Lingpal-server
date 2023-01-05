@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.150.0/http/server.ts";
 import { Server } from "https://deno.land/x/socket_io@0.2.0/mod.ts";
-import { Application } from "https://deno.land/x/oak/mod.ts";
-import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import { randomUUID } from "https://deno.land/std@0.134.0/node/crypto.ts";
 
 import { waitrooms, rooms } from "./utils/rooms.js";
@@ -20,12 +18,9 @@ import {
 const developmentUrl = "http://localhost:3000";
 const productionUrl = "https://linpal.vercel.app";
 
-const app = new Application();
-app.use(oakCors());
-
 const io = new Server({
 	cors: {
-    origin: [developmentUrl, `${productionUrl}:*`],
+    origin: [developmentUrl, productionUrl],
   },
 })
 
