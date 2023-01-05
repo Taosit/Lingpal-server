@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.150.0/http/server.ts";
 import { Server } from "https://deno.land/x/socket_io@0.2.0/mod.ts";
+import { randomUUID } from "https://deno.land/std@0.134.0/node/crypto.ts";
 
 import { waitrooms, rooms } from "./utils/rooms.js";
 
@@ -29,7 +30,7 @@ io.on("connection", (socket) => {
     const { mode, level, describer } = settings;
     let waitroom = waitrooms[mode][level][describer];
     if (!waitroom) {
-      waitroom = { id: uuid(), players: {}, settings };
+      waitroom = { id: randomUUID(), players: {}, settings };
       waitrooms[mode][level][describer] = waitroom;
     }
     const userCopy = {
