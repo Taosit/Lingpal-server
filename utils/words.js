@@ -1,5 +1,3 @@
-//const wordFile = require("./wordFile.txt");
-
 const hardWords = [
   "history",
   "way",
@@ -1471,7 +1469,7 @@ const easyWords = [
   "snow",
 ];
 
-const chooseWords = (num, level) => {
+export default function chooseWords(num, level) {
   const words = level === "easy" ? easyWords : hardWords;
   let wordSet = new Set();
   while (wordSet.size < num) {
@@ -1480,5 +1478,3 @@ const chooseWords = (num, level) => {
   }
   return [...wordSet];
 };
-
-module.exports = { chooseWords };

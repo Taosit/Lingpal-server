@@ -1,4 +1,4 @@
-let waitrooms = {
+export let waitrooms = {
 	standard: {
 		easy: {
 			text: null,
@@ -21,6 +21,4 @@ let waitrooms = {
 	},
 };
 
-const rooms = [];
-
-module.exports = { waitrooms, rooms };
+export const rooms = [];

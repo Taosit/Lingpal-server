@@ -1,11 +1,9 @@
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const { v4: uuid } = require("uuid");
-const path = require("path");
+import { serve } from "https://deno.land/std@0.150.0/http/server.ts";
+import { Server } from "https://deno.land/x/socket_io@0.2.0/mod.ts";
 
-const { waitrooms, rooms } = require("./model/rooms");
-const {
+import { waitrooms, rooms } from "./utils/rooms.js";
+
+import {
   setTimer,
   increasePlayerScore,
   updatePlayerNotes,
@@ -14,31 +12,16 @@ const {
   getNextTurn,
   calculateGameStats,
   flattenWaitroom,
-} = require("./controllers/gameLogic");
+} from "./utils/helpers.js";
 
 const developmentUrl = "http://localhost:3000";
 const productionUrl = "https://linpal.vercel.app";
 
-const app = express();
-
-const server = http.createServer(app);
-const io = require("socket.io")(server, {
-  cors: {
+const io = new Server({
+	cors: {
     origin: [developmentUrl, `${productionUrl}:*`],
   },
-});
-
-app.use(
-  cors()
-);
-
-app.use(express.static(path.join(__dirname, "public")));
-
-const PORT = process.env.PORT || 5000;
-
-app.get("/status", (req, res) => {
-  res.send("App is running successfully");
-});
+})
 
 io.on("connection", (socket) => {
   console.log("connected");
@@ -211,6 +194,8 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {});
 });
 
-server.listen(PORT, () => {
-  console.log("connected to port 5000");
-});
+const PORT = Deno.env.get("PORT") || 5000;
+
+await serve(io.handler(),{
+	port:PORT
+})
