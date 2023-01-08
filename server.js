@@ -164,9 +164,9 @@ io.on("connection", (socket) => {
       const disconnectingUser = Object.values(rooms[roomId].players).find(
         (p) => p.socketId === socket.id
       );
-      await User.findByIdAndUpdate(disconnectingUser._id, {
-        $inc: { total: 1 },
-      });
+      // await User.findByIdAndUpdate(disconnectingUser._id, {
+      //   $inc: { total: 1 },
+      // });
       delete rooms[roomId].players[disconnectingUser._id];
       if (Object.keys(rooms[roomId].players).length > 0) {
         socket.broadcast.to(roomId).emit("player-left", disconnectingUser);
