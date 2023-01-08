@@ -16,7 +16,7 @@ import {
 } from "./utils/helpers.js";
 
 const developmentUrl = "http://localhost:3000";
-const productionUrl = "https://linpal.vercel.app";
+const productionUrl = "https://lingpal.vercel.app";
 
 const io = new Server({
 	cors: {
