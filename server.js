@@ -25,7 +25,6 @@ const io = new Server({
 })
 
 io.on("connection", (socket) => {
-  console.log("connected");
   socket.on("join-room", ({ settings, user }) => {
     const { mode, level, describer } = settings;
     let waitroom = waitrooms[mode][level][describer];
@@ -33,6 +32,7 @@ io.on("connection", (socket) => {
       waitroom = { id: randomUUID(), players: {}, settings };
       waitrooms[mode][level][describer] = waitroom;
     }
+    console.log(`${user.username} joined the room`)
     const userCopy = {
       ...user,
       order: Object.keys(waitroom.players).length,
@@ -44,6 +44,7 @@ io.on("connection", (socket) => {
     socket.join(waitroom.id);
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (Object.keys(waitroom.players).length === 4) {
+      console.log("starting a game")
       startGame(io, waitroom);
       waitrooms[mode][level][describer] = null;
     }
@@ -56,6 +57,7 @@ io.on("connection", (socket) => {
     waitroom.players[user._id].isReady = isReady;
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (checkGameStart(waitroom.players)) {
+      console.log("starting a game")
       startGame(io, waitroom);
       waitrooms[mode][level][describer] = null;
     }
@@ -156,7 +158,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnecting", async () => {
-    console.log("disconnecting");
     const sockeRooms = [...socket.rooms];
     const roomId = sockeRooms.find((roomId) => roomId !== socket.id);
     if (!roomId) return;
@@ -164,9 +165,7 @@ io.on("connection", (socket) => {
       const disconnectingUser = Object.values(rooms[roomId].players).find(
         (p) => p.socketId === socket.id
       );
-      // await User.findByIdAndUpdate(disconnectingUser._id, {
-      //   $inc: { total: 1 },
-      // });
+      console.log(`${disconnectingUser.username} is disconnected`)
       delete rooms[roomId].players[disconnectingUser._id];
       if (Object.keys(rooms[roomId].players).length > 0) {
         socket.broadcast.to(roomId).emit("player-left", disconnectingUser);
