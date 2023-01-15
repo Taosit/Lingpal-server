@@ -107,7 +107,7 @@ io.on("connection", (socket) => {
 
   socket.on("send-message", ({ message, word, roomId }) => {
     const { sender, isDescriber, text } = message;
-    const includesWord = text.toLowerCase().includes(word);
+    const includesWord = new RegExp(`\\b${word}s?\\b`, "i").test(text);
     if (includesWord && isDescriber) return;
     io.to(roomId).emit("receive-message", message);
     if (includesWord) {
