@@ -12,22 +12,21 @@ import {
   startGame,
   getNextTurn,
   calculateGameStats,
-  findWaitroomById,
-  print,
+  flattenWaitroom,
 } from "./utils/helpers.js";
 
 const developmentUrl = "http://localhost:3000";
 const productionUrl = "https://lingpal.vercel.app";
 
 const io = new Server({
-  cors: {
+	cors: {
     origin: [developmentUrl, productionUrl],
   },
-});
+})
 
 io.on("connection", (socket) => {
   console.log("connected");
-  socket.on("join-room", ({ settings, player }, callback) => {
+  socket.on("join-room", ({ settings, user }) => {
     const { mode, level, describer } = settings;
     let waitroom = waitrooms[mode][level][describer];
     if (!waitroom) {
@@ -35,36 +34,34 @@ io.on("connection", (socket) => {
       waitrooms[mode][level][describer] = waitroom;
     }
     const userCopy = {
-      ...player,
+      ...user,
       order: Object.keys(waitroom.players).length,
       isReady: false,
       socketId: socket.id,
     };
-    waitroom.players[player.id] = userCopy;
+    delete userCopy.refreshToken;
+    waitroom.players[user._id] = userCopy;
     socket.join(waitroom.id);
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (Object.keys(waitroom.players).length === 4) {
-      const newPlayers = startGame(waitroom);
-      io.to(waitroom.id).emit("start-game", newPlayers);
+      startGame(io, waitroom);
       waitrooms[mode][level][describer] = null;
     }
-    callback(waitroom.id);
+    return Object.keys(waitroom.players).length;
   });
 
-  socket.on("player-ready", ({ playerId, roomId }) => {
-    const waitroom = findWaitroomById(waitrooms, roomId);
-    waitroom.players[playerId].isReady = !waitroom.players[playerId].isReady;
+  socket.on("player-ready", ({ user, settings, isReady }) => {
+    const { mode, level, describer } = settings;
+    const waitroom = waitrooms[mode][level][describer];
+    waitroom.players[user._id].isReady = isReady;
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (checkGameStart(waitroom.players)) {
-      const newPlayers = startGame(waitroom);
-      io.to(waitroom.id).emit("start-game", newPlayers);
-      const { mode, level, describer } = waitroom.settings;
+      startGame(io, waitroom);
       waitrooms[mode][level][describer] = null;
     }
   });
 
-  socket.on("note-time", (time) => {
-    const roomId = [...socket.rooms].find((roomId) => roomId !== socket.id);
+  socket.on("note-time", ({ roomId, time }) => {
     rooms[roomId].timer = setTimer(io, roomId, time);
   });
 
@@ -72,7 +69,7 @@ io.on("connection", (socket) => {
     const players = rooms[roomId].players;
     const updatedPlayers = updatePlayerNotes(players, userId, notes);
     rooms[roomId].players = updatedPlayers;
-    io.to(roomId).emit("update-players", updatedPlayers);
+    io.to(roomId).emit("update-notes", updatedPlayers);
   });
 
   socket.on("turn-time", ({ roomId, time }) => {
@@ -98,7 +95,9 @@ io.on("connection", (socket) => {
       io.to(roomId).emit("game-over", playersWithStats);
     }
     if (players) {
+      console.log({ timer: rooms[roomId].timer });
       rooms[roomId].timer = setTimer(io, roomId, 120);
+      console.log({ timer: rooms[roomId].timer });
       rooms[roomId].players = players;
       io.to(roomId).emit("update-players", players);
     }
@@ -125,11 +124,11 @@ io.on("connection", (socket) => {
       });
       clearInterval(rooms[roomId].timer);
       const players = rooms[roomId].players;
-      let updatedPlayers = increasePlayerScore(players, sender.id, 2);
+      let updatedPlayers = increasePlayerScore(players, sender._id, 2);
       const describer = Object.values(players).find(
         (p) => p.order === rooms[roomId].describerIndex
       );
-      updatedPlayers = increasePlayerScore(updatedPlayers, describer.id, 1);
+      updatedPlayers = increasePlayerScore(updatedPlayers, describer._id, 1);
       rooms[roomId].players = updatedPlayers;
       io.to(roomId).emit("correct-answer", updatedPlayers);
     }
@@ -148,7 +147,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("someone-left", ({ player, roomId }) => {
-    delete rooms[roomId].players[player.id];
+    delete rooms[roomId].players[player._id];
     if (Object.keys(rooms[roomId].players).length > 0) {
       socket.emit("player-left", player);
     } else {
@@ -165,21 +164,24 @@ io.on("connection", (socket) => {
       const disconnectingUser = Object.values(rooms[roomId].players).find(
         (p) => p.socketId === socket.id
       );
-      // await User.findByIdAndUpdate(disconnectingUser.id, {
+      // await User.findByIdAndUpdate(disconnectingUser._id, {
       //   $inc: { total: 1 },
       // });
-      delete rooms[roomId].players[disconnectingUser.id];
+      delete rooms[roomId].players[disconnectingUser._id];
       if (Object.keys(rooms[roomId].players).length > 0) {
         socket.broadcast.to(roomId).emit("player-left", disconnectingUser);
       } else {
         delete rooms[roomId];
       }
     } else {
-      const waitroom = findWaitroomById(waitrooms, roomId);
+      const waitroomArray = flattenWaitroom(waitrooms);
+      const waitroom = waitroomArray.find(
+        (waitroom) => waitroom.id === roomId
+      );
       const disconnectingUser = Object.values(waitroom.players).find(
         (p) => p.socketId === socket.id
       );
-      delete waitroom.players[disconnectingUser.id];
+      delete waitroom.players[disconnectingUser._id];
       const { mode, level, describer } = waitroom.settings;
       if (Object.keys(waitroom.players).length > 0) {
         waitrooms[mode][level][describer].players = waitroom.players;
@@ -193,8 +195,8 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {});
 });
 
-const PORT = Deno.env.get("PORT") || 5050;
+const PORT = Deno.env.get("PORT") || 5000;
 
-await serve(io.handler(), {
-  port: PORT,
-});
+await serve(io.handler(),{
+	port:PORT
+})

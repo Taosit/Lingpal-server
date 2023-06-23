@@ -1,29 +1,13 @@
 import { rooms } from "./rooms.js";
 import chooseWords from "./words.js";
 
-export const print = (...args) => {
-  console.log("---PRINTING---");
-  [...args].forEach((arg) => {
-    if (typeof arg === "object") {
-      console.log(JSON.stringify(arg, null, 2));
-    } else {
-      console.log(Object.keys({ arg })[0], arg);
-    }
-  });
-};
-
 const getEndTime = (timeValue) => {
   let time = new Date();
   time.setSeconds(time.getSeconds() + parseInt(timeValue));
   return time.getTime();
 };
 
-export const findWaitroomById = (waitrooms, id) => {
-  const waitroomArr = flattenWaitroom(waitrooms);
-  return waitroomArr.find((room) => room.id === id);
-};
-
-const flattenWaitroom = (waitrooms) => {
+export const flattenWaitroom = (waitrooms) => {
   return Object.values(waitrooms)
     .map((sub1) => Object.values(sub1).map((sub2) => Object.values(sub2)))
     .flat(3)
@@ -41,7 +25,6 @@ export const checkGameStart = (players) => {
 export const setTimer = (io, room, allowdTime) => {
   clearInterval(rooms[room].timer);
   const endTime = getEndTime(allowdTime);
-  io.to(room).emit("update-time", allowdTime);
   const interval = setInterval(() => {
     const updatedTime = Math.round((endTime - new Date().getTime()) / 1000);
     io.to(room).emit("update-time", updatedTime);
@@ -102,11 +85,15 @@ export const increasePlayerScore = (players, playerId, earnedScore) => {
   };
 };
 
-export const startGame = (waitroom) => {
+export const startGame = (io, waitroom) => {
   const newPlayers = initializePlayers(
     waitroom.players,
     waitroom.settings.level
   );
+  io.to(waitroom.id).emit("game-start", {
+    players: newPlayers,
+    roomId: waitroom.id,
+  });
   rooms[waitroom.id] = {
     players: newPlayers,
     ratings: [],
@@ -114,7 +101,6 @@ export const startGame = (waitroom) => {
     describerIndex: 0,
     originalPlayerNumber: Object.keys(newPlayers).length,
   };
-  return newPlayers;
 };
 
 export const calculateGameStats = (players) => {
