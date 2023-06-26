@@ -1469,12 +1469,12 @@ const easyWords = [
   "snow",
 ];
 
-export default function chooseWords(num, level) {
+export default function chooseWords(num: number, level: "easy" | "hard") {
   const words = level === "easy" ? easyWords : hardWords;
-  let wordSet = new Set();
+  let wordSet = new Set<string>();
   while (wordSet.size < num) {
     const randomIndex = Math.floor(Math.random() * words.length);
     wordSet.add(words[randomIndex]);
   }
   return [...wordSet];
-};
+}
