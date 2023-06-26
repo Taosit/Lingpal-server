@@ -15,6 +15,7 @@ import {
   getPlayer,
   initializeWaitRoom,
   updateTurn,
+  createBotMessage,
 } from "./utils/helpers.ts";
 
 const developmentUrl = "http://localhost:3000";
@@ -69,6 +70,26 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("start-round", () => {
+    const room = rooms[getRoomId(socket)];
+    const player = getPlayer(socket);
+    const describer = Object.values(room.players).find(
+      (p) => p.order === room.describerIndex
+    );
+    if (!describer) {
+      throw new Error("Describer not found");
+    }
+    if (player.id !== describer.id) {
+      const message = createBotMessage(
+        `${describer.username} is describing. Please wait`
+      );
+      socket.emit("receive-message", message);
+    } else {
+      const message = createBotMessage("You are describing");
+      socket.emit("receive-message", message);
+    }
+  });
+
   socket.on("set-timer", (time: number) => {
     const roomId = getRoomId(socket);
     clearInterval(rooms[roomId].timer);
@@ -95,7 +116,9 @@ io.on("connection", (socket) => {
 
   socket.on("update-turn", () => {
     const roomId = getRoomId(socket);
-    const { round, describerIndex, players } = updateTurn(rooms[roomId]);
+    const { round, describerIndex, players, roundChanged } = updateTurn(
+      rooms[roomId]
+    );
 
     if (round < 2) {
       io.to(roomId).emit("turn-updated", {
@@ -103,8 +126,32 @@ io.on("connection", (socket) => {
         nextDesc: describerIndex,
         players,
       });
+      if (roundChanged) return;
+      const newDescriber = Object.values(players).find(
+        (p) => p.order === describerIndex
+      );
+      if (!newDescriber) {
+        throw new Error("Describer not found");
+      }
+      const describerName = newDescriber?.username.replace(
+        newDescriber?.username[0],
+        newDescriber?.username[0].toUpperCase()
+      );
+      console.log(describerName, "should be describing");
+      Object.values(players).forEach((player) => {
+        const label =
+          player.id === newDescriber.id ? "You are" : `${describerName} is`;
+        const message = createBotMessage(`${label} describing`);
+        io.to(player.socketId).emit("receive-message", message);
+      });
     } else {
       const playersWithStats = calculateGameStats(rooms[roomId].players);
+      Object.values(playersWithStats).forEach((player) => {
+        const message = createBotMessage(
+          `Game is over, your rank is ${player.rank}`
+        );
+        io.to(player.socketId).emit("receive-message", message);
+      });
       io.to(roomId).emit("game-over", playersWithStats);
     }
   });
@@ -113,22 +160,25 @@ io.on("connection", (socket) => {
     const roomId = getRoomId(socket);
     const { sender, isDescriber, text } = message;
     const includesWord = text.toLowerCase().includes(targetWord);
-    if (includesWord && isDescriber) return;
+    if (includesWord && isDescriber) {
+      const message = createBotMessage(
+        "This message cannot be sent. You cannot include the word in your message"
+      );
+      socket.emit("receive-message", message);
+      return;
+    }
     io.to(roomId).emit("receive-message", message);
     if (includesWord) {
-      const confirmMessage = {
-        sender: null,
-        isBot: true,
-        isDescriber: null,
-      };
-      socket.broadcast.to(roomId).emit("receive-message", {
-        ...confirmMessage,
-        text: `The correct word is ${targetWord}. ${sender.username} got 2 points`,
-      });
-      socket.emit("receive-message", {
-        ...confirmMessage,
-        text: `The correct word is ${targetWord}. Well done!`,
-      });
+      const confirmMessageSender = createBotMessage(
+        `The correct word is ${targetWord}. Well done!`
+      );
+      socket.emit("receive-message", confirmMessageSender);
+      const confirmMessageNonSender = createBotMessage(
+        `The correct word is ${targetWord}. ${sender.username} got 2 points`
+      );
+      socket.broadcast
+        .to(roomId)
+        .emit("receive-message", confirmMessageNonSender);
       clearInterval(rooms[roomId].timer);
       const players = rooms[roomId].players;
       let updatedPlayers = increasePlayerScore(players, sender.id, 2);
@@ -142,6 +192,18 @@ io.on("connection", (socket) => {
       rooms[roomId].players = updatedPlayers;
       io.to(roomId).emit("correct-answer", updatedPlayers);
     }
+  });
+
+  socket.on("time-out", (word: string) => {
+    const roomId = getRoomId(socket);
+    const describerMessage = createBotMessage(
+      "Time is up. No one got the correct word"
+    );
+    socket.emit("receive-message", describerMessage);
+    const nonDescriberMessage = createBotMessage(
+      `Time is up. The correct word is ${word}`
+    );
+    socket.broadcast.to(roomId).emit("receive-message", nonDescriberMessage);
   });
 
   socket.on("send-rating", (rating) => {
@@ -171,10 +233,25 @@ io.on("connection", (socket) => {
       //   $inc: { total: 1 },
       // });
       delete rooms[roomId].players[disconnectingPlayer.id];
-      if (Object.keys(rooms[roomId].players).length === 0) {
+      const remainingPlayerNumber = Object.keys(rooms[roomId].players).length;
+      if (remainingPlayerNumber === 0) {
         delete rooms[roomId];
         return;
       }
+      if (remainingPlayerNumber === 1) {
+        const message = createBotMessage(
+          `Player ${disconnectingPlayer.username} left the game. The game is over`
+        );
+        socket.broadcast.to(roomId).emit("receive-message", message);
+        const playersWithStats = calculateGameStats(rooms[roomId].players);
+        io.to(roomId).emit("game-over", playersWithStats);
+        delete rooms[roomId];
+        return;
+      }
+      const leftGameMessage = createBotMessage(
+        `Player ${disconnectingPlayer.username} left the game`
+      );
+      socket.broadcast.to(roomId).emit("receive-message", leftGameMessage);
       if (disconnectingPlayer.order === rooms[roomId].describerIndex) {
         const { round, describerIndex, players } = updateTurn(rooms[roomId]);
         socket.broadcast.to(roomId).emit("player-left", {
@@ -183,6 +260,19 @@ io.on("connection", (socket) => {
           nextRound: round,
           remainingPlayers: players,
         });
+        const newDescriber = Object.values(players).find(
+          (p) => p.order === describerIndex
+        );
+        Object.values(players).forEach((player) => {
+          const username = newDescriber?.username.replace(
+            newDescriber?.username[0],
+            newDescriber?.username[0].toUpperCase()
+          );
+          const label =
+            player.socketId === socket.id ? "You are" : `${username} is`;
+          const describerMessage = createBotMessage(`${label} describing`);
+          io.to(player.socketId).emit("receive-message", describerMessage);
+        });
       } else {
         socket.broadcast.to(roomId).emit("player-left", {
           disconnectingPlayer,
@@ -190,18 +280,22 @@ io.on("connection", (socket) => {
         });
       }
     } else {
-      const waitroom = findWaitroomById(waitrooms, roomId);
-      const disconnectingUser = Object.values(waitroom.players).find(
-        (p) => p.socketId === socket.id
-      );
-      if (!disconnectingUser) return;
-      delete waitroom.players[disconnectingUser.id];
-      const { mode, level, describer } = waitroom.settings;
-      if (Object.keys(waitroom.players).length > 0) {
-        waitrooms[mode][level][describer]!.players = waitroom.players;
-        socket.broadcast.to(roomId).emit("update-players", waitroom.players);
-      } else {
-        waitrooms[mode][level][describer] = null;
+      try {
+        const waitroom = findWaitroomById(waitrooms, roomId);
+        const disconnectingUser = Object.values(waitroom.players).find(
+          (p) => p.socketId === socket.id
+        );
+        if (!disconnectingUser) return;
+        delete waitroom.players[disconnectingUser.id];
+        const { mode, level, describer } = waitroom.settings;
+        if (Object.keys(waitroom.players).length > 0) {
+          waitrooms[mode][level][describer]!.players = waitroom.players;
+          socket.broadcast.to(roomId).emit("update-players", waitroom.players);
+        } else {
+          waitrooms[mode][level][describer] = null;
+        }
+      } catch (error) {
+        console.log("Already left the room");
       }
     }
   });

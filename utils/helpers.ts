@@ -81,7 +81,6 @@ export const initializePlayers = (
   Object.entries(players).forEach(([id, player], i) => {
     const newPlayer = { ...player };
     newPlayer.score = 0;
-    newPlayer.isDescriber = i === 0;
     newPlayer.words = words.slice(i * 3, i * 3 + 3);
     newPlayers[id] = newPlayer;
   });
@@ -118,20 +117,19 @@ export const getNextTurn = ({ players, describerIndex, round }: Room) => {
 
 export const updateTurn = (room: Room) => {
   const { nextDesc, nextRound } = getNextTurn(room);
+  const previousRound = room.round;
   rooms[room.id].round = nextRound;
   rooms[room.id].describerIndex = nextDesc;
-  rooms[room.id].players = Object.fromEntries(
-    Object.entries(room.players).map(([id, player]) => {
-      return [
-        id,
-        {
-          ...player,
-          isDescriber: player.order === nextDesc,
-        },
-      ];
-    })
-  );
-  return rooms[room.id];
+  return { ...rooms[room.id], roundChanged: previousRound !== nextRound };
+};
+
+export const createBotMessage = (message: string) => {
+  return {
+    sender: null,
+    isBot: true,
+    isDescriber: null,
+    text: message,
+  };
 };
 
 export const increasePlayerScore = (

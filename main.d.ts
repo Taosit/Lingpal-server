@@ -17,7 +17,6 @@ type Player = {
   words: null | string[];
   notes: null | string[];
   socketId: string;
-  isDescriber: boolean;
 };
 
 type Room = {
