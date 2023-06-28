@@ -16,6 +16,7 @@ import {
   initializeWaitRoom,
   updateTurn,
   createBotMessage,
+  getRemainingPlayers,
 } from "./utils/helpers.ts";
 
 const developmentUrl = "http://localhost:3000";
@@ -137,7 +138,6 @@ io.on("connection", (socket) => {
         newDescriber?.username[0],
         newDescriber?.username[0].toUpperCase()
       );
-      console.log(describerName, "should be describing");
       Object.values(players).forEach((player) => {
         const label =
           player.id === newDescriber.id ? "You are" : `${describerName} is`;
@@ -286,21 +286,22 @@ io.on("connection", (socket) => {
           (p) => p.socketId === socket.id
         );
         if (!disconnectingUser) return;
-        delete waitroom.players[disconnectingUser.id];
+        const remainingPlayers = getRemainingPlayers(
+          waitroom.players,
+          disconnectingUser
+        );
         const { mode, level, describer } = waitroom.settings;
-        if (Object.keys(waitroom.players).length > 0) {
-          waitrooms[mode][level][describer]!.players = waitroom.players;
-          socket.broadcast.to(roomId).emit("update-players", waitroom.players);
-        } else {
+        if (Object.keys(remainingPlayers).length === 0) {
           waitrooms[mode][level][describer] = null;
+          return;
         }
+        waitrooms[mode][level][describer]!.players = remainingPlayers;
+        socket.broadcast.to(roomId).emit("update-players", remainingPlayers);
       } catch (error) {
         console.log("Already left the room");
       }
     }
   });
-
-  socket.on("disconnect", () => {});
 });
 
 const PORT = Deno.env.get("PORT") ? parseInt(Deno.env.get("PORT")!) : 5050;

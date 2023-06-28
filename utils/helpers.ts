@@ -63,6 +63,26 @@ const flattenWaitroom = (waitrooms: Waitrooms) => {
     .filter((room) => room);
 };
 
+export const getRemainingPlayers = (
+  players: Record<string, Player>,
+  disconnectingPlayer: Player
+) => {
+  return Object.fromEntries(
+    Object.entries(players)
+      .filter(([id]) => id !== disconnectingPlayer.id)
+      .map(([id, player]) => [
+        id,
+        {
+          ...player,
+          order:
+            player.order > disconnectingPlayer.order
+              ? player.order - 1
+              : player.order,
+        },
+      ])
+  );
+};
+
 export const checkGameStart = (players: Record<string, Player>) => {
   const playerArr = Object.values(players);
   if (playerArr.length === 4) {
