@@ -194,6 +194,31 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("voice-stream", ({ receiverId, signal }) => {
+    const roomId = getRoomId(socket);
+    const senderSocketId = socket.id;
+    const receiverSocketId = Object.values(rooms[roomId].players).find(
+      (p) => p.id === receiverId
+    )?.socketId;
+    if (!receiverSocketId) {
+      throw new Error("Receiver not found");
+    }
+    socket
+      .to(receiverSocketId)
+      .emit("receive-voice-stream", { senderSocketId, signal });
+  });
+
+  socket.on("return-signal", ({ senderSocketId, signal }) => {
+    const receiverId = getPlayer(socket).id;
+    if (!receiverId) {
+      throw new Error("Receiver not found");
+    }
+    socket.to(senderSocketId).emit("receive-return-signal", {
+      receiverId,
+      signal,
+    });
+  });
+
   socket.on("time-out", (word: string) => {
     const roomId = getRoomId(socket);
     const describerMessage = createBotMessage(
