@@ -85,9 +85,9 @@ export const getRemainingPlayers = (
 
 export const checkGameStart = (players: Record<string, Player>) => {
   const playerArr = Object.values(players);
-  if (playerArr.length === 4) {
-    return true;
-  }
+  // if (playerArr.length === 4) {
+  //   return true;
+  // }
   return playerArr.every((p) => p.isReady);
 };
 
@@ -95,13 +95,20 @@ export const initializePlayers = (
   players: Record<string, Player>,
   level: Settings["level"]
 ) => {
-  const words = chooseWords(Object.keys(players).length * 3, level);
+  const numberOfRounds = Object.keys(players).length > 2 ? 2 : 3;
+  const words = chooseWords(
+    Object.keys(players).length * numberOfRounds,
+    level
+  );
   words.push("");
   const newPlayers: Record<string, Player> = {};
   Object.entries(players).forEach(([id, player], i) => {
     const newPlayer = { ...player };
     newPlayer.score = 0;
-    newPlayer.words = words.slice(i * 3, i * 3 + 3);
+    newPlayer.words = words.slice(
+      i * numberOfRounds,
+      i * numberOfRounds + numberOfRounds
+    );
     newPlayers[id] = newPlayer;
   });
   return newPlayers;

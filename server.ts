@@ -48,20 +48,20 @@ io.on("connection", (socket) => {
       waitroom.players[player.id] = userCopy;
       socket.join(waitroom.id);
       io.to(waitroom.id).emit("update-players", waitroom.players);
-      if (Object.keys(waitroom.players).length === 4) {
-        const newPlayers = startGame(waitroom);
-        io.to(waitroom.id).emit("start-game", newPlayers);
-        waitrooms[mode][level][describer] = null;
-      }
+      // if (Object.keys(waitroom.players).length === 4) {
+      //   const newPlayers = startGame(waitroom);
+      //   io.to(waitroom.id).emit("start-game", newPlayers);
+      //   waitrooms[mode][level][describer] = null;
+      // }
       callback(waitroom.id);
     }
   );
 
   socket.on("player-ready", () => {
     const roomId = getRoomId(socket);
-    const playerId = getPlayer(socket).id;
+    const player = getPlayer(socket);
     const waitroom = findWaitroomById(waitrooms, roomId);
-    waitroom.players[playerId].isReady = !waitroom.players[playerId].isReady;
+    waitroom.players[player.id].isReady = !waitroom.players[player.id].isReady;
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (checkGameStart(waitroom.players)) {
       const newPlayers = startGame(waitroom);
@@ -120,8 +120,12 @@ io.on("connection", (socket) => {
     const { round, describerIndex, players, roundChanged } = updateTurn(
       rooms[roomId]
     );
+    const totalRounds = getPlayer(socket).words?.length;
+    if (!totalRounds) {
+      throw new Error("Cannot find total rounds");
+    }
 
-    if (round < 2) {
+    if (round < totalRounds) {
       io.to(roomId).emit("turn-updated", {
         nextRound: round,
         nextDesc: describerIndex,
@@ -159,7 +163,7 @@ io.on("connection", (socket) => {
   socket.on("send-message", ({ message, targetWord }) => {
     const roomId = getRoomId(socket);
     const { sender, isDescriber, text } = message;
-    const includesWord = text.toLowerCase().includes(targetWord);
+    const includesWord = text.toLowerCase().includes(targetWord.toLowerCase());
     if (includesWord && isDescriber) {
       const message = createBotMessage(
         "This message cannot be sent. You cannot include the word in your message"
