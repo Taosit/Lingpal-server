@@ -283,6 +283,19 @@ io.on("connection", (socket) => {
       socket.broadcast.to(roomId).emit("receive-message", leftGameMessage);
       if (disconnectingPlayer.order === rooms[roomId].describerIndex) {
         const { round, describerIndex, players } = updateTurn(rooms[roomId]);
+        const numberOfRounds = Object.values(players)[0].words!.length;
+        console.log("round", round, "numberOfRounds", numberOfRounds);
+        if (round === numberOfRounds) {
+          console.log("last round");
+          const message = createBotMessage(
+            `Player ${disconnectingPlayer.username} left the game. The game is over`
+          );
+          socket.broadcast.to(roomId).emit("receive-message", message);
+          const playersWithStats = calculateGameStats(rooms[roomId].players);
+          io.to(roomId).emit("game-over", playersWithStats);
+          delete rooms[roomId];
+          return;
+        }
         socket.broadcast.to(roomId).emit("player-left", {
           disconnectingPlayer,
           nextDesc: describerIndex,
@@ -292,13 +305,16 @@ io.on("connection", (socket) => {
         const newDescriber = Object.values(players).find(
           (p) => p.order === describerIndex
         );
+        if (!newDescriber) {
+          throw new Error("Cannot find next describer");
+        }
         Object.values(players).forEach((player) => {
           const username = newDescriber?.username.replace(
             newDescriber?.username[0],
             newDescriber?.username[0].toUpperCase()
           );
           const label =
-            player.socketId === socket.id ? "You are" : `${username} is`;
+            player.id === newDescriber.id ? "You are" : `${username} is`;
           const describerMessage = createBotMessage(`${label} describing`);
           io.to(player.socketId).emit("receive-message", describerMessage);
         });
