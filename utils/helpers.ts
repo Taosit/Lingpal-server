@@ -85,9 +85,9 @@ export const getRemainingPlayers = (
 
 export const checkGameStart = (players: Record<string, Player>) => {
   const playerArr = Object.values(players);
-  // if (playerArr.length === 4) {
-  //   return true;
-  // }
+  if (playerArr.length === 4) {
+    return true;
+  }
   return playerArr.every((p) => p.isReady);
 };
 

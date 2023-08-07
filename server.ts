@@ -39,6 +39,7 @@ io.on("connection", (socket) => {
         waitroom = initializeWaitRoom(settings);
         waitrooms[mode][level][describer] = waitroom;
       }
+      callback(waitroom.id);
       const userCopy: Player = {
         ...player,
         order: Object.keys(waitroom.players).length,
@@ -48,12 +49,12 @@ io.on("connection", (socket) => {
       waitroom.players[player.id] = userCopy;
       socket.join(waitroom.id);
       io.to(waitroom.id).emit("update-players", waitroom.players);
-      // if (Object.keys(waitroom.players).length === 4) {
-      //   const newPlayers = startGame(waitroom);
-      //   io.to(waitroom.id).emit("start-game", newPlayers);
-      //   waitrooms[mode][level][describer] = null;
-      // }
-      callback(waitroom.id);
+      if (Object.keys(waitroom.players).length === 4) {
+        console.log("Starting game", waitroom);
+        const newPlayers = startGame(waitroom);
+        io.to(waitroom.id).emit("start-game", newPlayers);
+        waitrooms[mode][level][describer] = null;
+      }
     }
   );
 
@@ -284,7 +285,6 @@ io.on("connection", (socket) => {
       if (disconnectingPlayer.order === rooms[roomId].describerIndex) {
         const { round, describerIndex, players } = updateTurn(rooms[roomId]);
         const numberOfRounds = Object.values(players)[0].words!.length;
-        console.log("round", round, "numberOfRounds", numberOfRounds);
         if (round === numberOfRounds) {
           console.log("last round");
           const message = createBotMessage(
