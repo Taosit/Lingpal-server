@@ -88,7 +88,10 @@ io.on("connection", (socket) => {
       );
       socket.emit("receive-message", message);
     } else {
-      const message = createBotMessage("You are describing");
+      const word = describer.words![room.round];
+      const message = createBotMessage(
+        `You are describing. The word is ${word}`
+      );
       socket.emit("receive-message", message);
     }
   });
@@ -147,7 +150,12 @@ io.on("connection", (socket) => {
       Object.values(players).forEach((player) => {
         const label =
           player.id === newDescriber.id ? "You are" : `${describerName} is`;
-        const message = createBotMessage(`${label} describing`);
+        const word = newDescriber.words![round];
+        const wordPrompt =
+          player.id === newDescriber.id
+            ? `. The word is ${word}`
+            : ". Please wait";
+        const message = createBotMessage(`${label} describing${wordPrompt}`);
         io.to(player.socketId).emit("receive-message", message);
       });
     } else {
@@ -315,14 +323,21 @@ io.on("connection", (socket) => {
         if (!newDescriber) {
           throw new Error("Cannot find next describer");
         }
+        const describerName = newDescriber?.username.replace(
+          newDescriber?.username[0],
+          newDescriber?.username[0].toUpperCase()
+        );
         Object.values(players).forEach((player) => {
-          const username = newDescriber?.username.replace(
-            newDescriber?.username[0],
-            newDescriber?.username[0].toUpperCase()
-          );
           const label =
-            player.id === newDescriber.id ? "You are" : `${username} is`;
-          const describerMessage = createBotMessage(`${label} describing`);
+            player.id === newDescriber.id ? "You are" : `${describerName} is`;
+          const word = newDescriber.words![round];
+          const wordPrompt =
+            player.id === newDescriber.id
+              ? `. The word is ${word}`
+              : ". Please wait";
+          const describerMessage = createBotMessage(
+            `${label} describing${wordPrompt}`
+          );
           io.to(player.socketId).emit("receive-message", describerMessage);
         });
       } else {
