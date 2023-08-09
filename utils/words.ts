@@ -1494,9 +1494,9 @@ const testEasyWords = [
 ];
 
 export default function chooseWords(num: number, level: "easy" | "hard") {
-  // const words = level === "easy" ? easyWords : hardWords;
+  const words = level === "easy" ? easyWords : hardWords;
   // This is for testing
-  const words = level === "easy" ? testEasyWords : testHardWords;
+  // const words = level === "easy" ? testEasyWords : testHardWords;
   let wordSet = new Set<string>();
   while (wordSet.size < num) {
     const randomIndex = Math.floor(Math.random() * words.length);

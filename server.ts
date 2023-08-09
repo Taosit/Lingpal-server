@@ -262,11 +262,12 @@ io.on("connection", (socket) => {
       );
       if (!disconnectingPlayer) return;
       const db = await connectToDB();
+      const advanced = rooms[roomId].settings.level === "hard" ? 1 : 0;
       await db
         .collection("users")
         .updateOne(
           { _id: new ObjectId(disconnectingPlayer.id) },
-          { $inc: { total: 1 } }
+          { $inc: { total: 1, advanced } }
         );
       disconnectDB();
       delete rooms[roomId].players[disconnectingPlayer.id];
