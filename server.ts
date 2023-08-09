@@ -18,7 +18,7 @@ import {
   createBotMessage,
   getRemainingPlayers,
 } from "./utils/helpers.ts";
-import { connectToDB, disconnectDB } from "./utils/db.ts";
+import { connectToDB } from "./utils/db.ts";
 import { ObjectId } from "https://deno.land/x/mongo@v0.31.2/mod.ts";
 
 const developmentUrl = "http://localhost:3000";
@@ -268,7 +268,6 @@ io.on("connection", (socket) => {
           { _id: new ObjectId(disconnectingPlayer.id) },
           { $inc: { total: 1 } }
         );
-      disconnectDB();
       delete rooms[roomId].players[disconnectingPlayer.id];
       const remainingPlayerNumber = Object.keys(rooms[roomId].players).length;
       if (remainingPlayerNumber === 0) {
