@@ -18,6 +18,8 @@ import {
   createBotMessage,
   getRemainingPlayers,
 } from "./utils/helpers.ts";
+import { connectToDB, disconnectDB } from "./utils/db.ts";
+import { ObjectId } from "https://deno.land/x/mongo@v0.31.2/mod.ts";
 
 const developmentUrl = "http://localhost:3000";
 const productionUrl = "https://lingpal.vercel.app";
@@ -39,6 +41,7 @@ io.on("connection", (socket) => {
         waitroom = initializeWaitRoom(settings);
         waitrooms[mode][level][describer] = waitroom;
       }
+      callback(waitroom.id);
       const userCopy: Player = {
         ...player,
         order: Object.keys(waitroom.players).length,
@@ -49,19 +52,19 @@ io.on("connection", (socket) => {
       socket.join(waitroom.id);
       io.to(waitroom.id).emit("update-players", waitroom.players);
       if (Object.keys(waitroom.players).length === 4) {
+        console.log("Starting game", waitroom);
         const newPlayers = startGame(waitroom);
         io.to(waitroom.id).emit("start-game", newPlayers);
         waitrooms[mode][level][describer] = null;
       }
-      callback(waitroom.id);
     }
   );
 
   socket.on("player-ready", () => {
     const roomId = getRoomId(socket);
-    const playerId = getPlayer(socket).id;
+    const player = getPlayer(socket);
     const waitroom = findWaitroomById(waitrooms, roomId);
-    waitroom.players[playerId].isReady = !waitroom.players[playerId].isReady;
+    waitroom.players[player.id].isReady = !waitroom.players[player.id].isReady;
     io.to(waitroom.id).emit("update-players", waitroom.players);
     if (checkGameStart(waitroom.players)) {
       const newPlayers = startGame(waitroom);
@@ -120,8 +123,12 @@ io.on("connection", (socket) => {
     const { round, describerIndex, players, roundChanged } = updateTurn(
       rooms[roomId]
     );
+    const totalRounds = getPlayer(socket).words?.length;
+    if (!totalRounds) {
+      throw new Error("Cannot find total rounds");
+    }
 
-    if (round < 2) {
+    if (round < totalRounds) {
       io.to(roomId).emit("turn-updated", {
         nextRound: round,
         nextDesc: describerIndex,
@@ -159,7 +166,7 @@ io.on("connection", (socket) => {
   socket.on("send-message", ({ message, targetWord }) => {
     const roomId = getRoomId(socket);
     const { sender, isDescriber, text } = message;
-    const includesWord = text.toLowerCase().includes(targetWord);
+    const includesWord = text.toLowerCase().includes(targetWord.toLowerCase());
     if (includesWord && isDescriber) {
       const message = createBotMessage(
         "This message cannot be sent. You cannot include the word in your message"
@@ -192,6 +199,31 @@ io.on("connection", (socket) => {
       rooms[roomId].players = updatedPlayers;
       io.to(roomId).emit("correct-answer", updatedPlayers);
     }
+  });
+
+  socket.on("voice-stream", ({ receiverId, signal }) => {
+    const roomId = getRoomId(socket);
+    const senderSocketId = socket.id;
+    const receiverSocketId = Object.values(rooms[roomId].players).find(
+      (p) => p.id === receiverId
+    )?.socketId;
+    if (!receiverSocketId) {
+      throw new Error("Receiver not found");
+    }
+    socket
+      .to(receiverSocketId)
+      .emit("receive-voice-stream", { senderSocketId, signal });
+  });
+
+  socket.on("return-signal", ({ senderSocketId, signal }) => {
+    const receiverId = getPlayer(socket).id;
+    if (!receiverId) {
+      throw new Error("Receiver not found");
+    }
+    socket.to(senderSocketId).emit("receive-return-signal", {
+      receiverId,
+      signal,
+    });
   });
 
   socket.on("time-out", (word: string) => {
@@ -229,9 +261,14 @@ io.on("connection", (socket) => {
         (p) => p.socketId === socket.id
       );
       if (!disconnectingPlayer) return;
-      // await User.findByIdAndUpdate(disconnectingPlayer.id, {
-      //   $inc: { total: 1 },
-      // });
+      const db = await connectToDB();
+      await db
+        .collection("users")
+        .updateOne(
+          { _id: new ObjectId(disconnectingPlayer.id) },
+          { $inc: { total: 1 } }
+        );
+      disconnectDB();
       delete rooms[roomId].players[disconnectingPlayer.id];
       const remainingPlayerNumber = Object.keys(rooms[roomId].players).length;
       if (remainingPlayerNumber === 0) {
@@ -254,6 +291,17 @@ io.on("connection", (socket) => {
       socket.broadcast.to(roomId).emit("receive-message", leftGameMessage);
       if (disconnectingPlayer.order === rooms[roomId].describerIndex) {
         const { round, describerIndex, players } = updateTurn(rooms[roomId]);
+        const numberOfRounds = Object.values(players)[0].words!.length;
+        if (round === numberOfRounds) {
+          const message = createBotMessage(
+            `Player ${disconnectingPlayer.username} left the game. The game is over`
+          );
+          socket.broadcast.to(roomId).emit("receive-message", message);
+          const playersWithStats = calculateGameStats(rooms[roomId].players);
+          io.to(roomId).emit("game-over", playersWithStats);
+          delete rooms[roomId];
+          return;
+        }
         socket.broadcast.to(roomId).emit("player-left", {
           disconnectingPlayer,
           nextDesc: describerIndex,
@@ -263,13 +311,16 @@ io.on("connection", (socket) => {
         const newDescriber = Object.values(players).find(
           (p) => p.order === describerIndex
         );
+        if (!newDescriber) {
+          throw new Error("Cannot find next describer");
+        }
         Object.values(players).forEach((player) => {
           const username = newDescriber?.username.replace(
             newDescriber?.username[0],
             newDescriber?.username[0].toUpperCase()
           );
           const label =
-            player.socketId === socket.id ? "You are" : `${username} is`;
+            player.id === newDescriber.id ? "You are" : `${username} is`;
           const describerMessage = createBotMessage(`${label} describing`);
           io.to(player.socketId).emit("receive-message", describerMessage);
         });
