@@ -18,6 +18,8 @@ import {
   createBotMessage,
   getRemainingPlayers,
 } from "./utils/helpers.ts";
+import { connectToDB, disconnectDB } from "./utils/db.ts";
+import { ObjectId } from "https://deno.land/x/mongo@v0.31.2/mod.ts";
 
 const developmentUrl = "http://localhost:3000";
 const productionUrl = "https://lingpal.vercel.app";
@@ -259,9 +261,14 @@ io.on("connection", (socket) => {
         (p) => p.socketId === socket.id
       );
       if (!disconnectingPlayer) return;
-      // await User.findByIdAndUpdate(disconnectingPlayer.id, {
-      //   $inc: { total: 1 },
-      // });
+      const db = await connectToDB();
+      await db
+        .collection("users")
+        .updateOne(
+          { _id: new ObjectId(disconnectingPlayer.id) },
+          { $inc: { total: 1 } }
+        );
+      disconnectDB();
       delete rooms[roomId].players[disconnectingPlayer.id];
       const remainingPlayerNumber = Object.keys(rooms[roomId].players).length;
       if (remainingPlayerNumber === 0) {
@@ -286,7 +293,6 @@ io.on("connection", (socket) => {
         const { round, describerIndex, players } = updateTurn(rooms[roomId]);
         const numberOfRounds = Object.values(players)[0].words!.length;
         if (round === numberOfRounds) {
-          console.log("last round");
           const message = createBotMessage(
             `Player ${disconnectingPlayer.username} left the game. The game is over`
           );
