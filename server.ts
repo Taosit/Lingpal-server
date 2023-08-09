@@ -52,7 +52,6 @@ io.on("connection", (socket) => {
       socket.join(waitroom.id);
       io.to(waitroom.id).emit("update-players", waitroom.players);
       if (Object.keys(waitroom.players).length === 4) {
-        console.log("Starting game", waitroom);
         const newPlayers = startGame(waitroom);
         io.to(waitroom.id).emit("start-game", newPlayers);
         waitrooms[mode][level][describer] = null;
@@ -160,6 +159,7 @@ io.on("connection", (socket) => {
         io.to(player.socketId).emit("receive-message", message);
       });
       io.to(roomId).emit("game-over", playersWithStats);
+      delete rooms[roomId];
     }
   });
 
