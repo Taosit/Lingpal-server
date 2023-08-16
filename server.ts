@@ -269,15 +269,18 @@ io.on("connection", (socket) => {
         (p) => p.socketId === socket.id
       );
       if (!disconnectingPlayer) return;
-      const db = await connectToDB();
-      const advanced = rooms[roomId].settings.level === "hard" ? 1 : 0;
-      await db
-        .collection("users")
-        .updateOne(
-          { _id: new ObjectId(disconnectingPlayer.id) },
-          { $inc: { total: 1, advanced } }
-        );
-      disconnectDB();
+      const { level, mode } = rooms[roomId].settings;
+      if (mode === "standard") {
+        const db = await connectToDB();
+        const advanced = level === "hard" ? 1 : 0;
+        await db
+          .collection("users")
+          .updateOne(
+            { _id: new ObjectId(disconnectingPlayer.id) },
+            { $inc: { total: 1, advanced } }
+          );
+        disconnectDB();
+      }
       delete rooms[roomId].players[disconnectingPlayer.id];
       const remainingPlayerNumber = Object.keys(rooms[roomId].players).length;
       if (remainingPlayerNumber === 0) {
