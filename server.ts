@@ -17,6 +17,7 @@ import {
   updateTurn,
   createBotMessage,
   getRemainingPlayers,
+  checkUserInput,
 } from "./utils/helpers.ts";
 import { connectToDB, disconnectDB } from "./utils/db.ts";
 import { ObjectId } from "https://deno.land/x/mongo@v0.31.2/mod.ts";
@@ -174,8 +175,7 @@ io.on("connection", (socket) => {
   socket.on("send-message", ({ message, targetWord }) => {
     const roomId = getRoomId(socket);
     const { sender, isDescriber, text } = message;
-    const includesWord = text.toLowerCase().includes(targetWord.toLowerCase());
-    if (includesWord && isDescriber) {
+    if (checkUserInput(text, targetWord, true) && isDescriber) {
       const message = createBotMessage(
         "This message cannot be sent. You cannot include the word in your message"
       );
@@ -183,7 +183,7 @@ io.on("connection", (socket) => {
       return;
     }
     io.to(roomId).emit("receive-message", message);
-    if (includesWord) {
+    if (checkUserInput(text, targetWord)) {
       const confirmMessageSender = createBotMessage(
         `The correct word is ${targetWord}. Well done!`
       );

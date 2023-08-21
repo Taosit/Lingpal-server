@@ -142,6 +142,25 @@ export const getNextTurn = ({ players, describerIndex, round }: Room) => {
   return { nextDesc, nextRound };
 };
 
+const decodeUserInput = (input: string) => {
+  const inputWithout3 = input.replace(/3/g, "e");
+  const inputWithout0 = inputWithout3.replace(/0/g, "o");
+  const inputWithout1 = inputWithout0.replace(/1/g, "i");
+  return inputWithout1;
+};
+
+export const checkUserInput = (
+  input: string,
+  targetWord: string,
+  isDescriber = false
+) => {
+  const regex = new RegExp(`\\b${targetWord}\\b`, "ig");
+  if (!isDescriber) return regex.test(input);
+  const decodedInput = decodeUserInput(input);
+  if (regex.test(decodedInput)) return true;
+  return decodedInput.includes(targetWord.split("").join(" "));
+};
+
 export const updateTurn = (room: Room) => {
   const { nextDesc, nextRound } = getNextTurn(room);
   const previousRound = room.round;
