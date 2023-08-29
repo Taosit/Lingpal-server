@@ -42,7 +42,6 @@ io.on("connection", (socket) => {
         waitroom = initializeWaitRoom(settings);
         waitrooms[mode][level][describer] = waitroom;
       }
-      callback(waitroom.id);
       const userCopy: Player = {
         ...player,
         order: Object.keys(waitroom.players).length,
@@ -51,7 +50,8 @@ io.on("connection", (socket) => {
       };
       waitroom.players[player.id] = userCopy;
       socket.join(waitroom.id);
-      io.to(waitroom.id).emit("update-players", waitroom.players);
+      callback(waitroom.id, waitroom.players);
+      socket.broadcast.to(waitroom.id).emit("update-players", waitroom.players);
       if (Object.keys(waitroom.players).length === 4) {
         const newPlayers = startGame(waitroom);
         io.to(waitroom.id).emit("start-game", newPlayers);
